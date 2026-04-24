@@ -1,0 +1,22 @@
+services:
+  questplan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: questplan
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+# Optional: uncomment to add a reverse proxy (e.g. Traefik or just nginx-proxy)
+# networks:
+#   default:
+#     external: true
+#     name: proxy
