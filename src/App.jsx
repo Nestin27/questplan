@@ -1,865 +1,479 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from 'react'
+import { api } from './api.js'
+import Payments from './Payments.jsx'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
-const DAYS_FULL  = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"];
-const MONTHS     = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
-const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
-
-let _id = Date.now();
-const uid = () => String(++_id);
+const DAYS_SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
+const DAYS_FULL  = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье']
+const MONTHS     = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
+const CODE_LANGS = ['javascript','typescript','python','rust','go','java','c','cpp','csharp','php','ruby','swift','kotlin','sql','bash','html','css','json','yaml','dockerfile']
 
 function getWeekDates(base) {
-  const d = new Date(base);
-  const dow = d.getDay();
-  const mon = new Date(d);
-  mon.setDate(d.getDate() - ((dow + 6) % 7));
-  return Array.from({ length: 7 }, (_, i) => {
-    const x = new Date(mon);
-    x.setDate(mon.getDate() + i);
-    return x;
-  });
+  const d = new Date(base), dow = d.getDay()
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - ((dow + 6) % 7))
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return x })
 }
+const dkey = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+const todayKey = dkey(new Date())
+const fmtBytes = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`
 
-const dkey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const todayKey = dkey(new Date());
-
-// ─── Theme system ─────────────────────────────────────────────────────────────
 const themes = {
   light: {
-    "--bg":            "#F7F8FC",
-    "--surface":       "#FFFFFF",
-    "--surface2":      "#F0F2F8",
-    "--surface3":      "#E8EBF4",
-    "--border":        "rgba(30,40,80,0.08)",
-    "--border-med":    "rgba(30,40,80,0.14)",
-    "--text":          "#14182B",
-    "--text-2":        "#5B6280",
-    "--text-3":        "#9CA3C0",
-    "--text-4":        "#C8CCE0",
-    "--accent":        "#4A6CF7",
-    "--accent-bg":     "rgba(74,108,247,0.09)",
-    "--accent-text":   "#3457D5",
-    "--accent-light":  "#6B8EFA",
-    "--green":         "#1B9E6E",
-    "--green-bg":      "rgba(27,158,110,0.09)",
-    "--red":           "#D94040",
-    "--today-bg":      "rgba(74,108,247,0.07)",
-    "--today-border":  "#4A6CF7",
-    "--weekend-bg":    "rgba(30,40,80,0.022)",
-    "--header-bg":     "#FFFFFF",
-    "--shadow-sm":     "0 1px 3px rgba(14,20,60,0.08), 0 1px 2px rgba(14,20,60,0.05)",
-    "--shadow-md":     "0 4px 16px rgba(14,20,60,0.12), 0 2px 6px rgba(14,20,60,0.07)",
-    "--shadow-lg":     "0 8px 32px rgba(14,20,60,0.16)",
-    "--panel-shadow":  "-4px 0 24px rgba(14,20,60,0.12)",
+    '--bg':'#F5F6FA','--surface':'#FFFFFF','--surface2':'#EEF0F8','--surface3':'#E4E7F2',
+    '--border':'rgba(30,40,100,0.08)','--border-med':'rgba(30,40,100,0.15)',
+    '--text':'#111827','--text-2':'#4B5563','--text-3':'#9CA3AF','--text-4':'#D1D5DB',
+    '--accent':'#4F6EF7','--accent-bg':'rgba(79,110,247,0.09)','--accent-text':'#3451C7',
+    '--green':'#16A34A','--green-bg':'rgba(22,163,74,0.09)',
+    '--red':'#DC2626','--today-bg':'rgba(79,110,247,0.06)','--today-border':'#4F6EF7',
+    '--weekend-bg':'rgba(0,0,0,0.015)','--header-bg':'#FFFFFF',
+    '--shadow-sm':'0 1px 3px rgba(0,0,0,0.07)','--shadow-md':'0 4px 16px rgba(0,0,0,0.10)',
+    '--shadow-lg':'0 8px 32px rgba(0,0,0,0.14)','--panel-shadow':'-2px 0 20px rgba(0,0,0,0.10)',
+    '--code-bg':'#1E1E2E','--code-text':'#CDD6F4',
   },
   dark: {
-    "--bg":            "#0F1117",
-    "--surface":       "#181B24",
-    "--surface2":      "#1F2330",
-    "--surface3":      "#262A38",
-    "--border":        "rgba(255,255,255,0.07)",
-    "--border-med":    "rgba(255,255,255,0.13)",
-    "--text":          "#E8EAF2",
-    "--text-2":        "#8B92B3",
-    "--text-3":        "#4E5470",
-    "--text-4":        "#2E3250",
-    "--accent":        "#5B7FFF",
-    "--accent-bg":     "rgba(91,127,255,0.14)",
-    "--accent-text":   "#8FABFF",
-    "--accent-light":  "#7A9BFF",
-    "--green":         "#2DBE8A",
-    "--green-bg":      "rgba(45,190,138,0.12)",
-    "--red":           "#E05555",
-    "--today-bg":      "rgba(91,127,255,0.12)",
-    "--today-border":  "#5B7FFF",
-    "--weekend-bg":    "rgba(255,255,255,0.018)",
-    "--header-bg":     "#13161F",
-    "--shadow-sm":     "0 1px 3px rgba(0,0,0,0.3)",
-    "--shadow-md":     "0 4px 16px rgba(0,0,0,0.4)",
-    "--shadow-lg":     "0 8px 32px rgba(0,0,0,0.5)",
-    "--panel-shadow":  "-4px 0 24px rgba(0,0,0,0.4)",
+    '--bg':'#0D1017','--surface':'#161B27','--surface2':'#1C2235','--surface3':'#232840',
+    '--border':'rgba(255,255,255,0.07)','--border-med':'rgba(255,255,255,0.13)',
+    '--text':'#E8EAF6','--text-2':'#8892B0','--text-3':'#4A5275','--text-4':'#272D45',
+    '--accent':'#5B7FFF','--accent-bg':'rgba(91,127,255,0.13)','--accent-text':'#8BABFF',
+    '--green':'#22C55E','--green-bg':'rgba(34,197,94,0.12)',
+    '--red':'#F87171','--today-bg':'rgba(91,127,255,0.11)','--today-border':'#5B7FFF',
+    '--weekend-bg':'rgba(255,255,255,0.015)','--header-bg':'#111520',
+    '--shadow-sm':'0 1px 3px rgba(0,0,0,0.3)','--shadow-md':'0 4px 16px rgba(0,0,0,0.4)',
+    '--shadow-lg':'0 8px 32px rgba(0,0,0,0.5)','--panel-shadow':'-2px 0 20px rgba(0,0,0,0.4)',
+    '--code-bg':'#11111B','--code-text':'#CDD6F4',
   }
-};
-
-function resolveTheme(key) {
-  if (key === "system") {
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return key;
 }
+const resolveTheme = k => k==='system' ? (window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light') : k
 
-// ─── Persist ──────────────────────────────────────────────────────────────────
-function loadState() {
-  try { const s = localStorage.getItem("qp_v4"); if (s) return JSON.parse(s); } catch {}
-  return { tasks: [], notes: [] };
-}
-function saveState(s) { try { localStorage.setItem("qp_v4", JSON.stringify(s)); } catch {} }
-
-// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem("qp_theme") || "system");
-  const resolved = resolveTheme(themeMode);
-  const T = themes[resolved];
+  const [themeMode, setThemeMode] = useState(()=>localStorage.getItem('qp_theme')||'system')
+  const resolved = resolveTheme(themeMode)
+  const T = themes[resolved]
 
-  useEffect(() => {
-    const root = document.documentElement;
-    Object.entries(T).forEach(([k, v]) => root.style.setProperty(k, v));
-    document.body.style.background = T["--bg"];
-    localStorage.setItem("qp_theme", themeMode);
-  }, [T, themeMode]);
+  useEffect(()=>{
+    Object.entries(T).forEach(([k,v])=>document.documentElement.style.setProperty(k,v))
+    document.body.style.background=T['--bg']
+    localStorage.setItem('qp_theme',themeMode)
+  },[T,themeMode])
 
-  const [data, setData] = useState(loadState);
-  const [tab, setTab]   = useState("planner");
-  const [weekBase, setWeekBase] = useState(new Date());
-  const weekDates = getWeekDates(weekBase);
+  const [tasks,setTasks]   = useState([])
+  const [notes,setNotes]   = useState([])
+  const [payments,setPayments] = useState([])
+  const [loading,setLoading] = useState(true)
+  const [tab,setTab]       = useState('planner')
+  const [weekBase,setWeekBase] = useState(new Date())
+  const weekDates = getWeekDates(weekBase)
+  const [panel,setPanel]   = useState(null)
+  const [expanded,setExpanded] = useState(null)
+  const dragging = useRef(null)
+  const [dragOver,setDragOver] = useState(null)
 
-  // Panel state
-  const [panel, setPanel]   = useState(null); // null | { mode:"backlog"|"day", dk?:string, date?:Date }
-  const [expanded, setExpanded] = useState(null);
+  useEffect(()=>{
+    Promise.all([api.getTasks(),api.getNotes(),api.getPayments()])
+      .then(([t,n,p])=>{setTasks(t);setNotes(n);setPayments(p)})
+      .catch(console.error).finally(()=>setLoading(false))
+  },[])
 
-  // Drag
-  const dragging = useRef(null);
-  const [dragOver, setDragOver] = useState(null);
+  const syncTask = t => setTasks(p=>p.some(x=>x.id===t.id)?p.map(x=>x.id===t.id?t:x):[...p,t])
+  const addTask    = async(title,dk)=>{const t=await api.addTask(title,dk);syncTask(t)}
+  const toggleTask = async(id,done) =>{const t=await api.updateTask(id,{done});syncTask(t)}
+  const deleteTask = async id=>{await api.deleteTask(id);setTasks(p=>p.filter(t=>t.id!==id))}
+  const assignDk   = async(id,dk)  =>{const t=await api.updateTask(id,{date_key:dk});syncTask(t)}
+  const unassignDk = async id      =>{const t=await api.updateTask(id,{date_key:null});syncTask(t)}
+  const addSub     = async(tid,title)=>{const t=await api.addSubtask(tid,title);syncTask(t)}
+  const toggleSub  = async(tid,sid,done)=>{const t=await api.toggleSubtask(tid,sid,done);syncTask(t)}
+  const deleteSub  = async(tid,sid)=>{const t=await api.deleteSubtask(tid,sid);syncTask(t)}
+  const addTNote   = async(tid,text)=>{const t=await api.addTaskNote(tid,text);syncTask(t)}
+  const delTNote   = async(tid,nid)=>{const t=await api.deleteTaskNote(tid,nid);syncTask(t)}
 
-  // Notebook
-  const [editingNote, setEditingNote] = useState(null);
-  const [addingNote, setAddingNote]   = useState(false);
-  const [newNote, setNewNote] = useState({ title: "", text: "" });
+  const syncNote = n=>setNotes(p=>p.some(x=>x.id===n.id)?p.map(x=>x.id===n.id?n:x):[n,...p])
+  const addNote    = async title=>{const n=await api.addNote(title);syncNote(n);return n}
+  const updateNote = async(id,p)=>{const n=await api.updateNote(id,p);syncNote(n)}
+  const deleteNote = async id=>{await api.deleteNote(id);setNotes(p=>p.filter(n=>n.id!==id))}
+  const addBlock   = async(nid,b)  =>{const n=await api.addBlock(nid,b);syncNote(n)}
+  const updateBlock= async(nid,bid,p)=>{const n=await api.updateBlock(nid,bid,p);syncNote(n)}
+  const deleteBlock= async(nid,bid)=>{const n=await api.deleteBlock(nid,bid);syncNote(n)}
+  const uploadFile = async(nid,file)=>{const n=await api.uploadFile(nid,file);syncNote(n)}
 
-  const mutate = useCallback((fn) => {
-    setData(prev => { const next = fn(prev); saveState(next); return next; });
-  }, []);
+  const panelTasks = !panel?[]:panel.mode==='backlog'?tasks.filter(t=>!t.date_key):tasks.filter(t=>t.date_key===panel.dk)
+  const panelLabel = !panel?'':panel.mode==='backlog'?'Все задачи':`${DAYS_FULL[(panel.date.getDay()+6)%7]}, ${panel.date.getDate()} ${MONTHS_GEN[panel.date.getMonth()]}`
+  const openDay=(d)=>{setPanel({mode:'day',dk:dkey(d),date:d});setExpanded(null)}
+  const openBacklog=()=>{setPanel({mode:'backlog'});setExpanded(null)}
+  const closePanel=()=>setPanel(null)
 
-  // ── Task ops ──────────────────────────────────────────────────────────────
-  const addTask = (title, dk) => mutate(d => ({
-    ...d, tasks: [...d.tasks, { id:uid(), title:title.trim(), done:false, subtasks:[], notes:[], dk: dk||null }]
-  }));
-  const toggleTask  = id => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id===id?{...t,done:!t.done}:t) }));
-  const deleteTask  = id => mutate(d => ({ ...d, tasks: d.tasks.filter(t => t.id!==id) }));
-  const assignDk    = (id, dk) => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id===id?{...t,dk}:t) }));
-  const unassignDk  = id => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id===id?{...t,dk:null}:t) }));
-  const addSub      = (tid, title) => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id!==tid?t:{...t,subtasks:[...(t.subtasks||[]),{id:uid(),title,done:false}]})}));
-  const toggleSub   = (tid, sid)   => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id!==tid?t:{...t,subtasks:t.subtasks.map(s=>s.id===sid?{...s,done:!s.done}:s)})}));
-  const deleteSub   = (tid, sid)   => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id!==tid?t:{...t,subtasks:t.subtasks.filter(s=>s.id!==sid)})}));
-  const addTNote    = (tid, text)  => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id!==tid?t:{...t,notes:[...(t.notes||[]),{id:uid(),text,date:new Date().toLocaleDateString("ru")}]})}));
-  const delTNote    = (tid, nid)   => mutate(d => ({ ...d, tasks: d.tasks.map(t => t.id!==tid?t:{...t,notes:t.notes.filter(n=>n.id!==nid)})}));
+  const css = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-family:'Plus Jakarta Sans',sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-family:inherit;font-size:13px;font-weight:600;border:none;border-radius:9px;cursor:pointer;transition:all .15s;padding:0;line-height:1}
+.btn-p{background:var(--accent);color:#fff;padding:8px 16px}.btn-p:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-s{background:var(--surface2);color:var(--text-2);border:1px solid var(--border);padding:7px 14px}.btn-s:hover{background:var(--surface3);color:var(--text);border-color:var(--border-med)}
+.btn-i{background:transparent;color:var(--text-3);width:30px;height:30px;border-radius:8px;font-size:16px}.btn-i:hover{background:var(--surface3);color:var(--text-2)}
+.bdel{background:transparent;color:var(--text-4);border:none;cursor:pointer;font-family:inherit;font-size:13px;width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;transition:all .12s}.bdel:hover{background:rgba(220,38,38,0.12);color:var(--red)}
+.inp{width:100%;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:9px 13px;font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}.inp:focus{border-color:var(--accent);background:var(--surface)}.inp::placeholder{color:var(--text-4)}
+textarea.inp{resize:vertical;line-height:1.65}
+.chk{width:18px;height:18px;border-radius:5px;flex-shrink:0;cursor:pointer;border:2px solid var(--border-med);display:flex;align-items:center;justify-content:center;transition:all .15s}.chk.on{background:var(--accent);border-color:var(--accent)}.chk.on::after{content:'';display:block;width:5px;height:9px;border:2px solid #fff;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px)}
+.chk.sm{width:15px;height:15px;border-radius:4px}.chk.sm.on::after{width:4px;height:7px}
+.tab{background:transparent;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:0 2px 11px;color:var(--text-3);border-bottom:2.5px solid transparent;transition:all .15s}.tab.on{color:var(--accent);border-bottom-color:var(--accent)}.tab:hover:not(.on){color:var(--text-2)}
+.tpill{background:transparent;border:1.5px solid var(--border);border-radius:20px;padding:4px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text-3);transition:all .15s}.tpill.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text)}.tpill:hover:not(.on){border-color:var(--border-med);color:var(--text-2)}
+.tile{border-radius:16px;border:1.5px solid var(--border);background:var(--surface);transition:box-shadow .15s,transform .15s,border-color .15s;cursor:pointer}.tile:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);border-color:var(--border-med)}.tile.act{background:var(--accent-bg);border-color:var(--accent);box-shadow:var(--shadow-md)}.tile.tod{background:var(--today-bg);border-color:var(--today-border);box-shadow:var(--shadow-md)}.tile.dov{outline:2.5px dashed var(--accent);outline-offset:-3px;background:var(--accent-bg)}
+.chip{display:flex;align-items:center;gap:5px;border-radius:7px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer;transition:all .12s;overflow:hidden;border:1px solid var(--border)}.chip:hover{filter:brightness(0.93)}
+.panel{position:fixed;top:0;right:0;height:100%;width:380px;max-width:100%;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:50;box-shadow:var(--panel-shadow);transform:translateX(100%);transition:transform .3s cubic-bezier(0.4,0,0.2,1)}.panel.open{transform:translateX(0)}
+.ncard{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;overflow:hidden;transition:box-shadow .2s,transform .2s}.ncard:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.cblock{background:var(--code-bg);border-radius:10px;overflow:hidden;margin:4px 0}
+.chdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.07)}
+.ccode{padding:14px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--code-text);white-space:pre-wrap;word-break:break-all;line-height:1.7;max-height:300px;overflow-y:auto}
+.cedit{width:100%;background:transparent;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--code-text);white-space:pre;resize:none;line-height:1.7;min-height:80px}
+.fblock{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}.fi{animation:fi .18s ease both}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:768px){
+  .panel{width:100%;border-left:none;top:auto;bottom:0;height:85vh;border-radius:20px 20px 0 0;transform:translateY(100%)}.panel.open{transform:translateY(0)}
+  .cal-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px!important;padding:12px!important}
+  .tile{min-height:150px!important}
+  .hm{display:none!important}
+  .hdr{padding:0 14px!important}
+  .tpill{padding:3px 8px!important;font-size:11px!important}
+  .wnav{padding:10px 14px!important}
+  .ngrid{grid-template-columns:1fr!important}
+}
+@media(max-width:480px){.cal-grid{grid-template-columns:repeat(2,1fr)!important}.tpill .tl{display:none}}
+`
 
-  // ── Note ops ──────────────────────────────────────────────────────────────
-  const saveNote   = () => {
-    if (!newNote.title.trim()) return;
-    mutate(d => ({ ...d, notes: [...d.notes, { id:uid(), ...newNote }] }));
-    setNewNote({ title:"", text:"" }); setAddingNote(false);
-  };
-  const patchNote  = (id, f, v) => mutate(d => ({ ...d, notes: d.notes.map(n=>n.id===id?{...n,[f]:v}:n) }));
-  const deleteNote = id => { mutate(d => ({ ...d, notes: d.notes.filter(n=>n.id!==id) })); if(editingNote===id)setEditingNote(null); };
+  if(loading) return(
+    <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,color:'var(--text-3)'}}>
+      <style>{css}</style>
+      <div style={{width:36,height:36,border:'3px solid var(--accent-bg)',borderTopColor:'var(--accent)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+      <span style={{fontSize:13}}>Загрузка…</span>
+    </div>
+  )
 
-  // ── Panel helpers ─────────────────────────────────────────────────────────
-  const openDay     = (date) => { setPanel({ mode:"day", dk:dkey(date), date }); setExpanded(null); };
-  const openBacklog = ()     => { setPanel({ mode:"backlog" }); setExpanded(null); };
-  const closePanel  = ()     => setPanel(null);
-
-  const panelTasks = !panel ? [] :
-    panel.mode === "backlog"
-      ? data.tasks.filter(t => !t.dk)
-      : data.tasks.filter(t => t.dk === panel.dk);
-
-  const panelLabel = !panel ? "" :
-    panel.mode === "backlog" ? "Все задачи" :
-    `${DAYS_FULL[(panel.date.getDay()+6)%7]}, ${panel.date.getDate()} ${MONTHS_GEN[panel.date.getMonth()]}`;
-
-  // ─────────────────────────────────────────────────────────────────────────
-  const PANEL_W = 380;
-
-  return (
+  return(
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-        html { font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; }
-        body { background:var(--bg); color:var(--text); min-height:100vh; }
-        ::-webkit-scrollbar { width:4px; height:4px; }
-        ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:8px; }
-
-        /* Buttons */
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px;
-          font-family:inherit; font-size:13px; font-weight:600; line-height:1;
-          border:none; border-radius:8px; cursor:pointer; transition:all .15s ease; padding:0; }
-        .btn-primary { background:var(--accent); color:#fff; padding:7px 16px; letter-spacing:.2px; }
-        .btn-primary:hover { filter:brightness(1.12); transform:translateY(-1px); box-shadow:var(--shadow-sm); }
-        .btn-primary:active { transform:translateY(0); }
-        .btn-secondary { background:var(--surface2); color:var(--text-2); border:1px solid var(--border); padding:6px 14px; }
-        .btn-secondary:hover { background:var(--surface3); color:var(--text); border-color:var(--border-med); }
-        .btn-ghost { background:transparent; color:var(--text-3); width:28px; height:28px; border-radius:7px; font-size:16px; }
-        .btn-ghost:hover { background:var(--surface3); color:var(--text-2); }
-        .btn-del { background:transparent; color:var(--text-4); border:none; cursor:pointer;
-          font-family:inherit; font-size:13px; width:22px; height:22px; border-radius:5px;
-          display:flex; align-items:center; justify-content:center; transition:all .12s; }
-        .btn-del:hover { background:rgba(210,50,50,0.12); color:var(--red); }
-
-        /* Inputs */
-        .inp { width:100%; background:var(--surface2); border:1.5px solid var(--border);
-          color:var(--text); border-radius:9px; padding:8px 12px;
-          font-family:inherit; font-size:14px; outline:none; transition:border-color .15s; }
-        .inp:focus { border-color:var(--accent); background:var(--surface); }
-        .inp::placeholder { color:var(--text-4); }
-        textarea.inp { resize:vertical; line-height:1.65; }
-
-        /* Checkbox */
-        .chk { width:17px; height:17px; border-radius:5px; flex-shrink:0; cursor:pointer;
-          border:2px solid var(--border-med); display:flex; align-items:center;
-          justify-content:center; transition:all .15s; }
-        .chk.on { background:var(--accent); border-color:var(--accent); }
-        .chk.on::after { content:""; display:block; width:5px; height:9px;
-          border:2px solid #fff; border-top:none; border-left:none;
-          transform:rotate(45deg) translateY(-1px); }
-
-        /* Tab buttons */
-        .tab { background:transparent; border:none; cursor:pointer;
-          font-family:inherit; font-size:13px; font-weight:600; letter-spacing:.2px;
-          padding:0 2px 10px; color:var(--text-3); border-bottom:2px solid transparent;
-          transition:all .15s; }
-        .tab.on { color:var(--accent); border-bottom-color:var(--accent); }
-        .tab:hover:not(.on) { color:var(--text-2); }
-
-        /* Theme toggle pills */
-        .theme-pill { background:transparent; border:1.5px solid var(--border); border-radius:20px;
-          padding:4px 12px; font-size:12px; font-weight:600; cursor:pointer;
-          font-family:inherit; color:var(--text-3); transition:all .15s; }
-        .theme-pill.on { background:var(--accent-bg); border-color:var(--accent); color:var(--accent-text); }
-        .theme-pill:hover:not(.on) { border-color:var(--border-med); color:var(--text-2); }
-
-        /* Calendar tile */
-        .cal-day { border-radius:16px; border:1.5px solid var(--border);
-          background:var(--surface); transition:box-shadow .15s, transform .15s, border-color .15s; }
-        .cal-day:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); border-color:var(--border-med); }
-
-        /* Task chip in calendar */
-        .chip { display:flex; align-items:center; gap:5px; border-radius:6px;
-          padding:3px 7px; font-size:12px; font-weight:500; cursor:pointer;
-          transition:all .12s; white-space:nowrap; overflow:hidden; max-width:100%; }
-        .chip:hover { filter:brightness(0.93); }
-
-        /* Slide panel */
-        .panel { position:fixed; top:0; right:0; height:100vh; width:${PANEL_W}px;
-          background:var(--surface); border-left:1px solid var(--border);
-          display:flex; flex-direction:column; z-index:50;
-          box-shadow:var(--panel-shadow);
-          transform:translateX(100%);
-          transition:transform .3s cubic-bezier(0.4,0,0.2,1); }
-        .panel.open { transform:translateX(0); }
-
-        /* Note card */
-        .note-card { background:var(--surface); border:1px solid var(--border);
-          border-radius:14px; overflow:hidden;
-          transition:box-shadow .2s, transform .2s; }
-        .note-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
-
-        /* Drag-over highlight */
-        .drop-target { background:var(--accent-bg) !important;
-          outline:2px dashed var(--accent); outline-offset:-3px; }
-
-        @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-        .fade-in { animation:fadeIn .18s ease both; }
-
-        /* Scrollbar for panel */
-        .panel-body { flex:1; overflow-y:auto; padding:12px 16px; }
-      `}</style>
-
-      {/* ═══ HEADER ═══ */}
-      <header style={{
-        background:"var(--header-bg)", borderBottom:"1px solid var(--border)",
-        position:"sticky", top:0, zIndex:40, height:54,
-        display:"flex", alignItems:"center", padding:"0 24px", gap:20,
-        boxShadow:"var(--shadow-sm)"
-      }}>
-        {/* Logo */}
-        <div style={{ fontWeight:700, fontSize:18, letterSpacing:-.5, flexShrink:0 }}>
-          <span style={{ color:"var(--accent)" }}>Quest</span>
-          <span style={{ color:"var(--text)" }}>Plan</span>
+      <style>{css}</style>
+      {/* HEADER */}
+      <header style={{background:'var(--header-bg)',borderBottom:'1px solid var(--border)',position:'sticky',top:0,zIndex:40,boxShadow:'var(--shadow-sm)'}}>
+        <div className="hdr" style={{display:'flex',alignItems:'center',padding:'0 24px',height:56,gap:20}}>
+          <div style={{fontWeight:800,fontSize:18,letterSpacing:-.5,lineHeight:1.1,flexShrink:0}}>
+            <div style={{color:'var(--accent)'}}>To-Do</div>
+            <div style={{fontSize:10,fontWeight:500,color:'var(--text-3)',letterSpacing:.2,marginTop:1}}>Планируем жизнь к лучшему</div>
+          </div>
+          <nav style={{display:'flex',gap:18,marginLeft:8}}>
+            <button className={`tab${tab==='planner'?' on':''}`} onClick={()=>setTab('planner')}>Планировщик</button>
+            <button className={`tab${tab==='notebook'?' on':''}`} onClick={()=>setTab('notebook')}>Записная книжка</button>
+            <button className={`tab${tab==='payments'?' on':''}`} onClick={()=>setTab('payments')}>Платежи</button>
+          </nav>
+          <div style={{flex:1}}/>
+          <div style={{display:'flex',gap:5}}>
+            {[['light','☀︎','Светлая'],['system','⊙','Авто'],['dark','☾','Тёмная']].map(([k,i,l])=>(
+              <button key={k} className={`tpill${themeMode===k?' on':''}`} onClick={()=>setThemeMode(k)}>
+                {i} <span className="tl">{l}</span>
+              </button>
+            ))}
+          </div>
+          {tab==='planner'&&<button className="btn btn-s hm" style={{marginLeft:8,flexShrink:0}} onClick={openBacklog}>
+            ☰ Задачи {tasks.filter(t=>!t.date_key).length>0&&<span style={{background:'var(--accent-bg)',color:'var(--accent-text)',borderRadius:10,padding:'1px 7px',fontSize:11}}>{tasks.filter(t=>!t.date_key).length}</span>}
+          </button>}
+          {tab==='notebook'&&<button className="btn btn-p" style={{marginLeft:8,flexShrink:0}} onClick={async()=>{const n=await addNote('');setExpanded(n.id)}}>+ Заметка</button>}
         </div>
-
-        {/* Tabs */}
-        <div style={{ display:"flex", gap:20, borderBottom:"none", marginLeft:12 }}>
-          <button className={`tab${tab==="planner"?" on":""}`} onClick={()=>setTab("planner")}>Планировщик</button>
-          <button className={`tab${tab==="notebook"?" on":""}`} onClick={()=>setTab("notebook")}>Записная книжка</button>
-        </div>
-
-        <div style={{ flex:1 }} />
-
-        {/* Theme switcher */}
-        <div style={{ display:"flex", gap:6 }}>
-          {[["light","☀︎ Светлая"],["system","⊙ Авто"],["dark","☾ Тёмная"]].map(([k,label])=>(
-            <button key={k} className={`theme-pill${themeMode===k?" on":""}`} onClick={()=>setThemeMode(k)}>{label}</button>
-          ))}
-        </div>
-
-        {/* Header actions */}
-        {tab==="planner" && (
-          <button className="btn btn-secondary" style={{ marginLeft:8, flexShrink:0 }} onClick={openBacklog}>
-            <span style={{ fontSize:14 }}>☰</span>
-            Задачи
-            {data.tasks.filter(t=>!t.dk).length > 0 && (
-              <span style={{
-                background:"var(--accent-bg)", color:"var(--accent-text)",
-                borderRadius:10, padding:"1px 7px", fontSize:11, fontWeight:700
-              }}>{data.tasks.filter(t=>!t.dk).length}</span>
-            )}
-          </button>
-        )}
-        {tab==="notebook" && (
-          <button className="btn btn-primary" style={{ marginLeft:8, flexShrink:0 }} onClick={()=>setAddingNote(true)}>
-            + Заметка
-          </button>
-        )}
+        {tab==='planner'&&<div style={{display:'flex',justifyContent:'center',padding:'6px 14px 8px',borderTop:'1px solid var(--border)',background:'var(--header-bg)'}} className="sm-backlog" id="sm-backlog">
+          <button className="btn btn-s" style={{width:'100%',maxWidth:400,fontSize:13}} onClick={openBacklog}>☰ Все задачи ({tasks.filter(t=>!t.date_key).length})</button>
+          <style>{`@media(min-width:769px){#sm-backlog{display:none}}`}</style>
+        </div>}
       </header>
 
-      {/* ═══ PLANNER ═══ */}
-      {tab==="planner" && (
-        <div style={{
-          display:"flex", height:"calc(100vh - 54px)", overflow:"hidden",
-          transition:"all .3s"
-        }}>
-          {/* Main calendar area */}
-          <div style={{
-            flex:1, display:"flex", flexDirection:"column", overflow:"hidden",
-            marginRight: panel ? PANEL_W : 0,
-            transition:"margin-right .3s cubic-bezier(0.4,0,0.2,1)"
-          }}>
-
-            {/* Week navigation bar */}
-            <div style={{
-              display:"flex", alignItems:"center", gap:12, padding:"12px 24px",
-              background:"var(--surface)", borderBottom:"1px solid var(--border)", flexShrink:0
-            }}>
-              <button className="btn btn-ghost" onClick={()=>setWeekBase(d=>{const n=new Date(d);n.setDate(n.getDate()-7);return n;})}>‹</button>
-              <div style={{ fontWeight:700, fontSize:16, minWidth:260, color:"var(--text)" }}>
+      {/* PLANNER */}
+      {tab==='planner'&&(
+        <div style={{display:'flex',height:'calc(100vh - 56px)',overflow:'hidden'}}>
+          <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',marginRight:panel?380:0,transition:'margin-right .3s cubic-bezier(0.4,0,0.2,1)'}}>
+            <div className="wnav" style={{display:'flex',alignItems:'center',gap:10,padding:'12px 20px',background:'var(--surface)',borderBottom:'1px solid var(--border)',flexShrink:0}}>
+              <button className="btn btn-i" onClick={()=>setWeekBase(d=>{const n=new Date(d);n.setDate(n.getDate()-7);return n})}>‹</button>
+              <div style={{fontWeight:700,fontSize:15,flex:1}}>
                 {MONTHS[weekDates[0].getMonth()]} {weekDates[0].getFullYear()}
-                {weekDates[0].getMonth()!==weekDates[6].getMonth() &&
-                  <span style={{ color:"var(--text-3)" }}> — {MONTHS[weekDates[6].getMonth()]} {weekDates[6].getFullYear()}</span>}
+                {weekDates[0].getMonth()!==weekDates[6].getMonth()&&<span style={{color:'var(--text-3)'}}> — {MONTHS[weekDates[6].getMonth()]}</span>}
               </div>
-              <button className="btn btn-ghost" onClick={()=>setWeekBase(d=>{const n=new Date(d);n.setDate(n.getDate()+7);return n;})}>›</button>
-              <button className="btn btn-secondary" style={{ padding:"5px 14px", fontSize:12 }} onClick={()=>setWeekBase(new Date())}>
-                Сегодня
-              </button>
+              <button className="btn btn-i" onClick={()=>setWeekBase(d=>{const n=new Date(d);n.setDate(n.getDate()+7);return n})}>›</button>
+              <button className="btn btn-s" style={{padding:'5px 12px',fontSize:12}} onClick={()=>setWeekBase(new Date())}>Сегодня</button>
             </div>
-
-            {/* Calendar tile grid */}
-            <div style={{ flex:1, overflow:"auto" }}>
-              <div style={{
-                display:"grid", gridTemplateColumns:"repeat(7,1fr)",
-                gap:12, padding:"16px 20px 24px",
-                minHeight:"100%", alignContent:"start"
-              }}>
-                {weekDates.map((date, di) => {
-                  const dk        = dkey(date);
-                  const isToday   = dk === todayKey;
-                  const isWknd    = di >= 5;
-                  const isActive  = panel?.mode==="day" && panel.dk===dk;
-                  const dayTasks  = data.tasks.filter(t => t.dk === dk);
-                  const isDragOver = dragOver === dk;
-
-                  return (
-                    <div key={di}
-                      className={`cal-day${isDragOver?" drop-target":""}`}
-                      style={{
-                        display:"flex", flexDirection:"column", padding:"14px 12px 10px", gap:5,
-                        cursor:"pointer", minHeight:220,
-                        background: isActive
-                          ? "var(--accent-bg)"
-                          : isToday
-                            ? "var(--today-bg)"
-                            : isWknd
-                              ? "var(--weekend-bg)"
-                              : "var(--surface)",
-                        borderColor: isActive
-                          ? "var(--accent)"
-                          : isToday
-                            ? "var(--today-border)"
-                            : "var(--border)",
-                        boxShadow: isActive || isToday ? "var(--shadow-md)" : "var(--shadow-sm)",
-                      }}
-                      onDragOver={e=>{ e.preventDefault(); setDragOver(dk); }}
+            <div style={{flex:1,overflow:'auto'}}>
+              <div className="cal-grid" style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:12,padding:'16px 20px 24px'}}>
+                {weekDates.map((date,di)=>{
+                  const dk=dkey(date),isToday=dk===todayKey,isAct=panel?.mode==='day'&&panel.dk===dk,isWknd=di>=5
+                  const dayTasks=tasks.filter(t=>t.date_key===dk)
+                  return(
+                    <div key={di} className={`tile${isAct?' act':isToday?' tod':''}${dragOver===dk?' dov':''}`}
+                      style={{display:'flex',flexDirection:'column',padding:'14px 12px 10px',minHeight:220,gap:4,opacity:isWknd&&!isAct&&!isToday?.85:1}}
+                      onDragOver={e=>{e.preventDefault();setDragOver(dk)}}
                       onDragLeave={()=>setDragOver(null)}
-                      onDrop={e=>{
-                        e.preventDefault();
-                        if (dragging.current) { assignDk(dragging.current, dk); dragging.current=null; }
-                        setDragOver(null);
-                      }}
-                      onClick={()=>{ if(!isDragOver) isActive?closePanel():openDay(date); }}
+                      onDrop={e=>{e.preventDefault();if(dragging.current){assignDk(dragging.current,dk);dragging.current=null}setDragOver(null)}}
+                      onClick={()=>isAct?closePanel():openDay(date)}
                     >
-                      {/* Tile header: day name + number */}
-                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6 }}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                         <div>
-                          <div style={{
-                            fontSize:10, fontWeight:700, letterSpacing:1.2,
-                            textTransform:"uppercase", marginBottom:3,
-                            color: isToday||isActive ? "var(--accent)" : isWknd ? "var(--text-3)" : "var(--text-3)"
-                          }}>{DAYS_SHORT[di]}</div>
-                          <div style={{
-                            fontSize:26, fontWeight:800, lineHeight:1, letterSpacing:-.5,
-                            color: isToday||isActive ? "var(--accent)" : isWknd ? "var(--text-3)" : "var(--text)"
-                          }}>
-                            {date.getDate()}
-                          </div>
+                          <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:3,color:isToday||isAct?'var(--accent)':isWknd?'var(--text-3)':'var(--text-3)'}}>{DAYS_SHORT[di]}</div>
+                          <div style={{fontSize:26,fontWeight:800,lineHeight:1,letterSpacing:-.5,color:isToday||isAct?'var(--accent)':isWknd?'var(--text-3)':'var(--text)'}}>{date.getDate()}</div>
                         </div>
-                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                          {isToday && (
-                            <span style={{
-                              fontSize:10, fontWeight:700, color:"var(--accent)",
-                              background:"var(--accent-bg)", borderRadius:8, padding:"2px 7px",
-                              letterSpacing:.5
-                            }}>сегодня</span>
-                          )}
-                          {dayTasks.length > 0 && (
-                            <span style={{
-                              fontSize:10, fontWeight:700, color:"var(--text-3)",
-                              background:"var(--surface2)", borderRadius:8, padding:"2px 7px"
-                            }}>
-                              {dayTasks.filter(t=>t.done).length}/{dayTasks.length}
-                            </span>
-                          )}
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3}}>
+                          {isToday&&<span style={{fontSize:9,fontWeight:700,color:'var(--accent)',background:'var(--accent-bg)',borderRadius:8,padding:'2px 7px',letterSpacing:.3}}>сегодня</span>}
+                          {dayTasks.length>0&&<span style={{fontSize:10,fontWeight:700,color:'var(--text-3)',background:'var(--surface2)',borderRadius:8,padding:'2px 7px'}}>{dayTasks.filter(t=>t.done).length}/{dayTasks.length}</span>}
                         </div>
                       </div>
-
-                      {/* Divider */}
-                      <div style={{ height:1, background:"var(--border)", marginBottom:4, flexShrink:0 }} />
-
-                      {/* Task chips */}
-                      {dayTasks.slice(0,6).map(task => (
-                        <div key={task.id}
-                          className="chip"
-                          draggable
-                          onDragStart={e=>{ e.stopPropagation(); dragging.current=task.id; }}
-                          onClick={e=>{ e.stopPropagation(); openDay(date); setExpanded(task.id); }}
-                          style={{
-                            background: task.done ? "var(--green-bg)" : "var(--surface2)",
-                            color: task.done ? "var(--green)" : "var(--text-2)",
-                            opacity: task.done ? .75 : 1,
-                            border: "1px solid var(--border)",
-                          }}
-                        >
-                          <span style={{
-                            width:6, height:6, borderRadius:"50%", flexShrink:0,
-                            background: task.done ? "var(--green)" : "var(--accent)",
-                          }} />
-                          <span style={{ overflow:"hidden", textOverflow:"ellipsis", flex:1 }}>
-                            {task.done ? <s>{task.title}</s> : task.title}
-                          </span>
+                      <div style={{height:1,background:'var(--border)',marginBottom:4}}/>
+                      {dayTasks.slice(0,5).map(t=>(
+                        <div key={t.id} className="chip" draggable
+                          onDragStart={e=>{e.stopPropagation();dragging.current=t.id}}
+                          onClick={e=>{e.stopPropagation();openDay(date);setExpanded(t.id)}}
+                          style={{background:t.done?'var(--green-bg)':'var(--surface2)',color:t.done?'var(--green)':'var(--text-2)',opacity:t.done?.7:1}}>
+                          <span style={{width:6,height:6,borderRadius:'50%',flexShrink:0,background:t.done?'var(--green)':'var(--accent)'}}/>
+                          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{t.done?<s>{t.title}</s>:t.title}</span>
                         </div>
                       ))}
-                      {dayTasks.length > 6 && (
-                        <div style={{ fontSize:11, color:"var(--text-3)", paddingLeft:4 }}>
-                          ещё +{dayTasks.length-6}
-                        </div>
-                      )}
-
-                      {/* Quick add */}
-                      <div style={{ marginTop:"auto", paddingTop:4 }} onClick={e=>e.stopPropagation()}>
-                        <QuickAdd placeholder="+ задача" onAdd={t=>addTask(t,dk)} />
+                      {dayTasks.length>5&&<div style={{fontSize:11,color:'var(--text-3)',paddingLeft:4}}>+{dayTasks.length-5} ещё</div>}
+                      <div style={{marginTop:'auto',paddingTop:6}} onClick={e=>e.stopPropagation()}>
+                        <QuickAdd onAdd={t=>addTask(t,dk)}/>
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             </div>
           </div>
-
-          {/* ── SLIDING PANEL ── */}
-          <div className={`panel${panel?" open":""}`}>
-            {panel && (
-              <SlidePanel
-                label={panelLabel}
-                tasks={panelTasks}
-                isBacklog={panel.mode==="backlog"}
-                expanded={expanded}
-                setExpanded={setExpanded}
-                weekDates={weekDates}
-                onClose={closePanel}
-                onAdd={t=>panel.mode==="backlog"?addTask(t,null):addTask(t,panel.dk)}
-                onToggle={toggleTask}
-                onDelete={deleteTask}
-                onAssign={(id,dk)=>assignDk(id,dk)}
-                onUnassign={panel.mode==="day" ? unassignDk : null}
-                onAddSub={addSub}
-                onToggleSub={toggleSub}
-                onDeleteSub={deleteSub}
-                onAddTNote={addTNote}
-                onDelTNote={delTNote}
-                dragging={dragging}
-              />
-            )}
+          <div className={`panel${panel?' open':''}`}>
+            {panel&&<TaskPanel label={panelLabel} tasks={panelTasks} isBacklog={panel.mode==='backlog'}
+              expanded={expanded} setExpanded={setExpanded} weekDates={weekDates} onClose={closePanel}
+              onAdd={t=>panel.mode==='backlog'?addTask(t,null):addTask(t,panel.dk)}
+              onToggle={(id,done)=>toggleTask(id,done)} onDelete={deleteTask}
+              onAssign={(id,dk)=>assignDk(id,dk)} onUnassign={panel.mode==='day'?unassignDk:null}
+              onAddSub={addSub} onToggleSub={toggleSub} onDeleteSub={deleteSub}
+              onAddTNote={addTNote} onDelTNote={delTNote} dragging={dragging}
+            />}
           </div>
         </div>
       )}
 
-      {/* ═══ NOTEBOOK ═══ */}
-      {tab==="notebook" && (
-        <div style={{ padding:"28px 28px 40px", maxWidth:1300, margin:"0 auto" }}>
-          {addingNote && (
-            <div className="fade-in" style={{
-              background:"var(--surface)", border:"1px solid var(--border)",
-              borderRadius:14, padding:22, marginBottom:24,
-              boxShadow:"var(--shadow-md)"
-            }}>
-              <input className="inp" placeholder="Название заметки…" value={newNote.title}
-                onChange={e=>setNewNote(n=>({...n,title:e.target.value}))} autoFocus
-                style={{ marginBottom:12 }} />
-              <textarea className="inp" rows={5} placeholder="Текст заметки…" value={newNote.text}
-                onChange={e=>setNewNote(n=>({...n,text:e.target.value}))}
-                style={{ marginBottom:12 }} />
-              <div style={{ display:"flex", gap:8 }}>
-                <button className="btn btn-primary" onClick={saveNote}>Создать</button>
-                <button className="btn btn-secondary" onClick={()=>{ setAddingNote(false); setNewNote({title:"",text:""}); }}>Отмена</button>
-              </div>
-            </div>
-          )}
-
-          {data.notes.length===0 && !addingNote && (
-            <div style={{ textAlign:"center", color:"var(--text-3)", padding:"80px 0", fontSize:15 }}>
-              Нет заметок — нажмите «+ Заметка»
-            </div>
-          )}
-
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))", gap:18 }}>
-            {data.notes.map(note => (
+      {/* NOTEBOOK */}
+      {tab==='notebook'&&(
+        <div style={{padding:'24px 24px 60px',maxWidth:1200,margin:'0 auto'}}>
+          {notes.length===0&&<div style={{textAlign:'center',color:'var(--text-3)',padding:'80px 0',fontSize:15}}>Нет заметок — нажмите «+ Заметка»</div>}
+          <div className="ngrid" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:18}}>
+            {notes.map(note=>(
               <NoteCard key={note.id} note={note}
-                editing={editingNote===note.id}
-                onEdit={()=>setEditingNote(editingNote===note.id?null:note.id)}
-                onUpdate={(f,v)=>patchNote(note.id,f,v)}
+                editing={expanded===note.id}
+                onEdit={()=>setExpanded(expanded===note.id?null:note.id)}
+                onUpdate={(f,v)=>updateNote(note.id,{[f]:v})}
                 onDelete={()=>deleteNote(note.id)}
+                onAddBlock={b=>addBlock(note.id,b)}
+                onUpdateBlock={(bid,p)=>updateBlock(note.id,bid,p)}
+                onDeleteBlock={bid=>deleteBlock(note.id,bid)}
+                onUploadFile={file=>uploadFile(note.id,file)}
               />
             ))}
           </div>
         </div>
       )}
+
+      {/* PAYMENTS */}
+      {tab==='payments'&&<Payments />}
     </>
-  );
+  )
 }
 
-// ─── QuickAdd ─────────────────────────────────────────────────────────────────
-function QuickAdd({ placeholder, onAdd }) {
-  const [open, setOpen] = useState(false);
-  const [val, setVal]   = useState("");
-  const go = () => { if(val.trim()){ onAdd(val.trim()); setVal(""); setOpen(false); } };
+function QuickAdd({onAdd}){
+  const [open,setOpen]=useState(false),[val,setVal]=useState('')
+  const go=()=>{if(val.trim()){onAdd(val.trim());setVal('');setOpen(false)}}
+  if(!open)return<button onClick={()=>setOpen(true)} style={{background:'transparent',border:'none',cursor:'pointer',color:'var(--text-4)',fontSize:12,fontWeight:500,padding:'4px 6px',borderRadius:6,width:'100%',textAlign:'left',fontFamily:'inherit',transition:'all .12s'}} onMouseOver={e=>{e.currentTarget.style.color='var(--accent)';e.currentTarget.style.background='var(--accent-bg)'}} onMouseOut={e=>{e.currentTarget.style.color='var(--text-4)';e.currentTarget.style.background='transparent'}}>+ задача</button>
+  return<div style={{display:'flex',flexDirection:'column',gap:5,marginTop:4}}>
+    <input className="inp" style={{fontSize:12,padding:'5px 9px'}} value={val} onChange={e=>setVal(e.target.value)} placeholder="Задача…" autoFocus onKeyDown={e=>{if(e.key==='Enter')go();if(e.key==='Escape'){setOpen(false);setVal('')}}}/>
+    <div style={{display:'flex',gap:5}}>
+      <button className="btn btn-p" style={{flex:1,padding:'4px 0',fontSize:12}} onClick={go}>✓</button>
+      <button className="btn btn-s" style={{flex:1,padding:'4px 0',fontSize:12}} onClick={()=>{setOpen(false);setVal('')}}>✕</button>
+    </div>
+  </div>
+}
 
-  if (!open) return (
-    <button
-      onClick={()=>setOpen(true)}
-      style={{
-        background:"transparent", border:"none", cursor:"pointer",
-        color:"var(--text-4)", fontSize:12, fontWeight:500,
-        padding:"4px 6px", borderRadius:6, width:"100%", textAlign:"left",
-        fontFamily:"inherit", transition:"color .12s, background .12s"
-      }}
-      onMouseOver={e=>{ e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.background="var(--accent-bg)"; }}
-      onMouseOut={e=>{ e.currentTarget.style.color="var(--text-4)"; e.currentTarget.style.background="transparent"; }}
-    >{placeholder}</button>
-  );
+function TaskPanel({label,tasks,isBacklog,expanded,setExpanded,weekDates,onClose,onAdd,onToggle,onDelete,onAssign,onUnassign,onAddSub,onToggleSub,onDeleteSub,onAddTNote,onDelTNote,dragging}){
+  const [adding,setAdding]=useState(false),[val,setVal]=useState('')
+  const go=()=>{if(val.trim()){onAdd(val.trim());setVal('');setAdding(false)}}
+  return<>
+    <div style={{padding:'16px 18px 12px',borderBottom:'1px solid var(--border)',flexShrink:0}}>
+      <div style={{width:36,height:4,borderRadius:2,background:'var(--border-med)',margin:'0 auto 12px'}}/>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>{label}</div>
+          <div style={{fontSize:12,color:'var(--text-3)',marginTop:2}}>{tasks.length} задач · {tasks.filter(t=>t.done).length} выполнено</div>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-p" style={{padding:'6px 12px',fontSize:12}} onClick={()=>setAdding(v=>!v)}>+ Задача</button>
+          <button className="btn btn-i" onClick={onClose}>×</button>
+        </div>
+      </div>
+      {adding&&<div className="fi" style={{marginTop:12,display:'flex',flexDirection:'column',gap:8}}>
+        <input className="inp" placeholder="Название задачи…" value={val} onChange={e=>setVal(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter')go();if(e.key==='Escape')setAdding(false)}}/>
+        <div style={{display:'flex',gap:7}}>
+          <button className="btn btn-p" style={{flex:1,padding:'6px 0'}} onClick={go}>Добавить</button>
+          <button className="btn btn-s" style={{flex:1,padding:'6px 0'}} onClick={()=>setAdding(false)}>Отмена</button>
+        </div>
+      </div>}
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'12px 14px'}}>
+      {tasks.length===0&&<div style={{textAlign:'center',color:'var(--text-3)',padding:'40px 0',fontSize:13}}>{isBacklog?'Нет задач в очереди':'Нет задач на этот день'}</div>}
+      {tasks.map(task=><PanelTask key={task.id} task={task}
+        isExpanded={expanded===task.id} onExpand={()=>setExpanded(expanded===task.id?null:task.id)}
+        onToggle={done=>onToggle(task.id,done)} onDelete={()=>onDelete(task.id)}
+        onUnassign={onUnassign?()=>onUnassign(task.id):null}
+        isBacklog={isBacklog} weekDates={weekDates} onAssign={dk=>onAssign(task.id,dk)}
+        onAddSub={t=>onAddSub(task.id,t)} onToggleSub={(s,d)=>onToggleSub(task.id,s,d)} onDeleteSub={s=>onDeleteSub(task.id,s)}
+        onAddTNote={t=>onAddTNote(task.id,t)} onDelTNote={n=>onDelTNote(task.id,n)} dragging={dragging}
+      />)}
+    </div>
+  </>
+}
 
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:4 }}>
-      <input className="inp" style={{ fontSize:12, padding:"5px 9px" }}
-        value={val} onChange={e=>setVal(e.target.value)} placeholder="Задача…" autoFocus
-        onKeyDown={e=>{ if(e.key==="Enter")go(); if(e.key==="Escape"){ setOpen(false); setVal(""); } }} />
-      <div style={{ display:"flex", gap:5 }}>
-        <button className="btn btn-primary" style={{ flex:1, padding:"4px 0", fontSize:12 }} onClick={go}>✓</button>
-        <button className="btn btn-secondary" style={{ flex:1, padding:"4px 0", fontSize:12 }} onClick={()=>{ setOpen(false); setVal(""); }}>✕</button>
+function PanelTask({task,isExpanded,onExpand,onToggle,onDelete,onUnassign,isBacklog,weekDates,onAssign,onAddSub,onToggleSub,onDeleteSub,onAddTNote,onDelTNote,dragging}){
+  const [subVal,setSubVal]=useState(''),[noteVal,setNoteVal]=useState('')
+  const [showSub,setShowSub]=useState(false),[showNote,setShowNote]=useState(false),[dayMenu,setDayMenu]=useState(false)
+  const prog=task.subtasks?.length?Math.round(task.subtasks.filter(s=>s.done).length/task.subtasks.length*100):null
+  return<div draggable onDragStart={()=>{dragging.current=task.id}}
+    style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:11,marginBottom:8,overflow:'hidden',boxShadow:'var(--shadow-sm)',opacity:task.done?.65:1}}>
+    <div style={{display:'flex',alignItems:'flex-start',gap:8,padding:'10px 12px'}}>
+      <span style={{color:'var(--text-4)',cursor:'grab',fontSize:14,marginTop:1}}>⠿</span>
+      <div className={`chk${task.done?' on':''}`} onClick={()=>onToggle(!task.done)} style={{marginTop:1}}/>
+      <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={onExpand}>
+        <div style={{fontSize:13.5,fontWeight:500,lineHeight:1.4,color:'var(--text)',textDecoration:task.done?'line-through':'none',wordBreak:'break-word'}}>{task.title}</div>
+        {prog!==null&&<div style={{marginTop:5,height:3,borderRadius:4,background:'var(--surface3)'}}><div style={{height:'100%',width:`${prog}%`,borderRadius:4,background:'var(--accent)',transition:'width .3s'}}/></div>}
+        {task.subtasks?.length>0&&<div style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>{task.subtasks.filter(s=>s.done).length}/{task.subtasks.length} подзадач</div>}
+      </div>
+      <div style={{display:'flex',gap:2,flexShrink:0}}>
+        {isBacklog&&<div style={{position:'relative'}}>
+          <button className="bdel" onClick={()=>setDayMenu(v=>!v)} title="Назначить день">📅</button>
+          {dayMenu&&<div style={{position:'absolute',right:0,top:28,background:'var(--surface)',border:'1px solid var(--border-med)',borderRadius:10,zIndex:20,overflow:'hidden',boxShadow:'var(--shadow-lg)',minWidth:150}}>
+            {weekDates.map((d,i)=><button key={i} onClick={()=>{onAssign(dkey(d));setDayMenu(false)}}
+              style={{display:'block',width:'100%',background:'transparent',border:'none',cursor:'pointer',padding:'7px 14px',textAlign:'left',fontFamily:'inherit',fontSize:13,color:'var(--text)',fontWeight:500}}
+              onMouseOver={e=>e.currentTarget.style.background='var(--surface2)'} onMouseOut={e=>e.currentTarget.style.background='transparent'}>
+              <span style={{color:'var(--text-3)',marginRight:8,fontSize:11}}>{DAYS_SHORT[i]}</span>{d.getDate()} {MONTHS_GEN[d.getMonth()]}
+            </button>)}
+          </div>}
+        </div>}
+        {onUnassign&&<button className="bdel" onClick={onUnassign} title="Убрать из дня">↩</button>}
+        <button className="bdel" onClick={onDelete}>×</button>
       </div>
     </div>
-  );
+    {isExpanded&&<div style={{borderTop:'1px solid var(--border)',padding:'12px 14px',background:'var(--surface2)',display:'flex',flexDirection:'column',gap:14}}>
+      <div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:1,color:'var(--text-3)',textTransform:'uppercase'}}>Подзадачи</span>
+          <button className="btn btn-s" style={{padding:'2px 9px',fontSize:11}} onClick={()=>setShowSub(v=>!v)}>+ добавить</button>
+        </div>
+        {showSub&&<div style={{display:'flex',gap:6,marginBottom:8}}>
+          <input className="inp" style={{fontSize:12,padding:'5px 9px'}} value={subVal} onChange={e=>setSubVal(e.target.value)} placeholder="Подзадача…" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&subVal.trim()){onAddSub(subVal.trim());setSubVal('');setShowSub(false)}if(e.key==='Escape')setShowSub(false)}}/>
+          <button className="btn btn-p" style={{padding:'4px 10px',fontSize:12}} onClick={()=>{if(subVal.trim()){onAddSub(subVal.trim());setSubVal('');setShowSub(false)}}}>✓</button>
+        </div>}
+        {(task.subtasks||[]).map(s=><div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid var(--border)'}}>
+          <div className={`chk sm${s.done?' on':''}`} onClick={()=>onToggleSub(s.id,!s.done)}/>
+          <span style={{flex:1,fontSize:13,color:s.done?'var(--text-3)':'var(--text)',textDecoration:s.done?'line-through':'none'}}>{s.title}</span>
+          <button className="bdel" style={{width:18,height:18,fontSize:12}} onClick={()=>onDeleteSub(s.id)}>×</button>
+        </div>)}
+        {!(task.subtasks||[]).length&&!showSub&&<div style={{fontSize:12,color:'var(--text-4)'}}>Нет подзадач</div>}
+      </div>
+      <div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:1,color:'var(--text-3)',textTransform:'uppercase'}}>Заметки</span>
+          <button className="btn btn-s" style={{padding:'2px 9px',fontSize:11}} onClick={()=>setShowNote(v=>!v)}>+ добавить</button>
+        </div>
+        {showNote&&<div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:8}}>
+          <textarea className="inp" rows={2} style={{fontSize:12,padding:'6px 9px'}} value={noteVal} onChange={e=>setNoteVal(e.target.value)} placeholder="Заметка к задаче…" autoFocus/>
+          <div style={{display:'flex',gap:6}}>
+            <button className="btn btn-p" style={{flex:1,padding:'5px 0',fontSize:12}} onClick={()=>{if(noteVal.trim()){onAddTNote(noteVal.trim());setNoteVal('');setShowNote(false)}}}>Добавить</button>
+            <button className="btn btn-s" style={{flex:1,padding:'5px 0',fontSize:12}} onClick={()=>{setShowNote(false);setNoteVal('')}}>Отмена</button>
+          </div>
+        </div>}
+        {(task.notes||[]).map(n=><div key={n.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',marginBottom:6,fontSize:13,color:'var(--text)',lineHeight:1.6,position:'relative'}}>
+          <span style={{color:'var(--text-3)',fontSize:11,marginRight:8}}>{n.date}</span>{n.text}
+          <button className="bdel" style={{position:'absolute',right:5,top:5,width:18,height:18,fontSize:12}} onClick={()=>onDelTNote(n.id)}>×</button>
+        </div>)}
+        {!(task.notes||[]).length&&!showNote&&<div style={{fontSize:12,color:'var(--text-4)'}}>Нет заметок</div>}
+      </div>
+    </div>}
+  </div>
 }
 
-// ─── SlidePanel ───────────────────────────────────────────────────────────────
-function SlidePanel({ label, tasks, isBacklog, expanded, setExpanded, weekDates,
-  onClose, onAdd, onToggle, onDelete, onAssign, onUnassign,
-  onAddSub, onToggleSub, onDeleteSub, onAddTNote, onDelTNote, dragging }) {
-
-  const [adding, setAdding] = useState(false);
-  const [newVal, setNewVal] = useState("");
-
-  const go = () => { if(newVal.trim()){ onAdd(newVal.trim()); setNewVal(""); setAdding(false); } };
-
-  return (
-    <>
-      {/* Panel header */}
-      <div style={{
-        padding:"16px 18px 12px", borderBottom:"1px solid var(--border)",
-        flexShrink:0, background:"var(--surface)"
-      }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:2 }}>
-          <div style={{ fontSize:15, fontWeight:700, color:"var(--text)", lineHeight:1.3 }}>{label}</div>
-          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-            <button className="btn btn-primary" style={{ padding:"5px 13px", fontSize:12 }}
-              onClick={()=>setAdding(v=>!v)}>+ Задача</button>
-            <button className="btn btn-ghost" onClick={onClose} title="Закрыть">×</button>
-          </div>
-        </div>
-        <div style={{ fontSize:12, color:"var(--text-3)", marginTop:4 }}>
-          {tasks.length} задач · {tasks.filter(t=>t.done).length} выполнено
-        </div>
-
-        {adding && (
-          <div className="fade-in" style={{ marginTop:12, display:"flex", flexDirection:"column", gap:8 }}>
-            <input className="inp" placeholder="Название задачи…" value={newVal}
-              onChange={e=>setNewVal(e.target.value)} autoFocus
-              onKeyDown={e=>{ if(e.key==="Enter")go(); if(e.key==="Escape")setAdding(false); }} />
-            <div style={{ display:"flex", gap:7 }}>
-              <button className="btn btn-primary" style={{ flex:1, padding:"6px 0" }} onClick={go}>Добавить</button>
-              <button className="btn btn-secondary" style={{ flex:1, padding:"6px 0" }} onClick={()=>setAdding(false)}>Отмена</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Task list */}
-      <div className="panel-body">
-        {tasks.length===0 && (
-          <div style={{ textAlign:"center", color:"var(--text-3)", padding:"40px 0 20px", fontSize:13 }}>
-            {isBacklog ? "Нет задач в очереди.\nПеретяните задачи из панели на день." : "Нет задач на этот день"}
-          </div>
-        )}
-        {tasks.map(task => (
-          <PanelTask key={task.id} task={task}
-            isExpanded={expanded===task.id}
-            onExpand={()=>setExpanded(expanded===task.id?null:task.id)}
-            onToggle={()=>onToggle(task.id)}
-            onDelete={()=>onDelete(task.id)}
-            onUnassign={onUnassign?()=>onUnassign(task.id):null}
-            isBacklog={isBacklog}
-            weekDates={weekDates}
-            onAssign={(dk)=>onAssign(task.id,dk)}
-            onAddSub={t=>onAddSub(task.id,t)}
-            onToggleSub={s=>onToggleSub(task.id,s)}
-            onDeleteSub={s=>onDeleteSub(task.id,s)}
-            onAddTNote={t=>onAddTNote(task.id,t)}
-            onDelTNote={n=>onDelTNote(task.id,n)}
-            dragging={dragging}
-          />
-        ))}
-      </div>
-    </>
-  );
-}
-
-// ─── PanelTask ────────────────────────────────────────────────────────────────
-function PanelTask({ task, isExpanded, onExpand, onToggle, onDelete, onUnassign,
-  isBacklog, weekDates, onAssign, onAddSub, onToggleSub, onDeleteSub, onAddTNote, onDelTNote, dragging }) {
-
-  const [subVal, setSubVal]     = useState("");
-  const [noteVal, setNoteVal]   = useState("");
-  const [showSub, setShowSub]   = useState(false);
-  const [showNote, setShowNote] = useState(false);
-  const [dayMenu, setDayMenu]   = useState(false);
-
-  const progress = task.subtasks?.length
-    ? Math.round(task.subtasks.filter(s=>s.done).length / task.subtasks.length * 100)
-    : null;
-
-  const addSub  = () => { if(subVal.trim()){ onAddSub(subVal.trim()); setSubVal(""); setShowSub(false); } };
-  const addNote = () => { if(noteVal.trim()){ onAddTNote(noteVal.trim()); setNoteVal(""); setShowNote(false); } };
-
-  return (
-    <div
-      draggable
-      onDragStart={()=>{ dragging.current=task.id; }}
-      style={{
-        background:"var(--surface)", border:"1px solid var(--border)",
-        borderRadius:11, marginBottom:8, overflow:"hidden",
-        boxShadow:"var(--shadow-sm)",
-        opacity:task.done?.65:1, transition:"opacity .15s, box-shadow .15s"
-      }}
-    >
-      {/* Row */}
-      <div style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 12px" }}>
-        <span style={{ color:"var(--text-4)", cursor:"grab", fontSize:14, marginTop:1, flexShrink:0 }}>⠿</span>
-        <div className={`chk${task.done?" on":""}`} onClick={onToggle} style={{ marginTop:1 }} />
-        <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={onExpand}>
-          <div style={{
-            fontSize:13.5, fontWeight:500, lineHeight:1.4, wordBreak:"break-word",
-            color:"var(--text)", textDecoration:task.done?"line-through":"none"
-          }}>{task.title}</div>
-          {progress!==null && (
-            <div style={{ marginTop:5, height:3, borderRadius:4, background:"var(--surface3)" }}>
-              <div style={{ height:"100%", width:`${progress}%`, borderRadius:4,
-                background:"var(--accent)", transition:"width .3s" }} />
-            </div>
-          )}
-          {task.subtasks?.length>0 && (
-            <div style={{ fontSize:11, color:"var(--text-3)", marginTop:3 }}>
-              {task.subtasks.filter(s=>s.done).length}/{task.subtasks.length} подзадач
-            </div>
-          )}
-        </div>
-        <div style={{ display:"flex", gap:2, flexShrink:0 }}>
-          {isBacklog && (
-            <div style={{ position:"relative" }}>
-              <button className="btn-del" title="Назначить день" onClick={()=>setDayMenu(v=>!v)}
-                style={{ fontSize:12 }}>📅</button>
-              {dayMenu && (
-                <div style={{
-                  position:"absolute", right:0, top:28, background:"var(--surface)",
-                  border:"1px solid var(--border-med)", borderRadius:10, zIndex:20, overflow:"hidden",
-                  boxShadow:"var(--shadow-lg)", minWidth:130
-                }}>
-                  {weekDates.map((d,i)=>(
-                    <button key={i}
-                      onClick={()=>{ onAssign(dkey(d)); setDayMenu(false); }}
-                      style={{
-                        display:"block", width:"100%", background:"transparent",
-                        border:"none", cursor:"pointer", padding:"7px 14px",
-                        textAlign:"left", fontFamily:"inherit", fontSize:13,
-                        color:"var(--text)", fontWeight:500, transition:"background .1s"
-                      }}
-                      onMouseOver={e=>e.currentTarget.style.background="var(--surface2)"}
-                      onMouseOut={e=>e.currentTarget.style.background="transparent"}
-                    >
-                      <span style={{ color:"var(--text-3)", marginRight:8, fontSize:12 }}>{DAYS_SHORT[i]}</span>
-                      {d.getDate()} {MONTHS_GEN[d.getMonth()]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {onUnassign && (
-            <button className="btn-del" title="Убрать из дня" onClick={onUnassign} style={{ fontSize:13 }}>↩</button>
-          )}
-          <button className="btn-del" onClick={onDelete}>×</button>
-        </div>
-      </div>
-
-      {/* Expanded quest zone */}
-      {isExpanded && (
-        <div style={{
-          borderTop:"1px solid var(--border)", padding:"12px 14px",
-          background:"var(--surface2)", display:"flex", flexDirection:"column", gap:14
-        }}>
-
-          {/* Subtasks */}
-          <div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:.8, color:"var(--text-3)", textTransform:"uppercase" }}>
-                Подзадачи
-              </span>
-              <button className="btn btn-secondary" style={{ padding:"2px 9px", fontSize:11 }}
-                onClick={()=>setShowSub(v=>!v)}>+ добавить</button>
-            </div>
-            {showSub && (
-              <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-                <input className="inp" style={{ fontSize:12, padding:"5px 9px" }}
-                  value={subVal} onChange={e=>setSubVal(e.target.value)}
-                  placeholder="Подзадача…" autoFocus
-                  onKeyDown={e=>{ if(e.key==="Enter")addSub(); if(e.key==="Escape")setShowSub(false); }} />
-                <button className="btn btn-primary" style={{ padding:"4px 10px", fontSize:12 }} onClick={addSub}>✓</button>
-              </div>
-            )}
-            {(task.subtasks||[]).length===0 && !showSub && (
-              <div style={{ fontSize:12, color:"var(--text-4)" }}>Нет подзадач</div>
-            )}
-            {(task.subtasks||[]).map(sub => (
-              <div key={sub.id} style={{
-                display:"flex", alignItems:"center", gap:8, padding:"5px 0",
-                borderBottom:"1px solid var(--border)"
-              }}>
-                <div className={`chk${sub.done?" on":""}`}
-                  style={{ width:14, height:14, borderRadius:4 }} onClick={()=>onToggleSub(sub.id)} />
-                <span style={{
-                  flex:1, fontSize:13, color:sub.done?"var(--text-3)":"var(--text)",
-                  textDecoration:sub.done?"line-through":"none"
-                }}>{sub.title}</span>
-                <button className="btn-del" style={{ width:18, height:18, fontSize:12 }}
-                  onClick={()=>onDeleteSub(sub.id)}>×</button>
-              </div>
-            ))}
-          </div>
-
-          {/* Task notes */}
-          <div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <span style={{ fontSize:11, fontWeight:700, letterSpacing:.8, color:"var(--text-3)", textTransform:"uppercase" }}>
-                Заметки
-              </span>
-              <button className="btn btn-secondary" style={{ padding:"2px 9px", fontSize:11 }}
-                onClick={()=>setShowNote(v=>!v)}>+ добавить</button>
-            </div>
-            {showNote && (
-              <div style={{ display:"flex", flexDirection:"column", gap:7, marginBottom:8 }}>
-                <textarea className="inp" rows={2} style={{ fontSize:12, padding:"6px 9px" }}
-                  value={noteVal} onChange={e=>setNoteVal(e.target.value)}
-                  placeholder="Заметка к задаче…" autoFocus />
-                <div style={{ display:"flex", gap:6 }}>
-                  <button className="btn btn-primary" style={{ flex:1, padding:"5px 0", fontSize:12 }} onClick={addNote}>Добавить</button>
-                  <button className="btn btn-secondary" style={{ flex:1, padding:"5px 0", fontSize:12 }}
-                    onClick={()=>{ setShowNote(false); setNoteVal(""); }}>Отмена</button>
-                </div>
-              </div>
-            )}
-            {(task.notes||[]).length===0 && !showNote && (
-              <div style={{ fontSize:12, color:"var(--text-4)" }}>Нет заметок</div>
-            )}
-            {(task.notes||[]).map(n => (
-              <div key={n.id} style={{
-                background:"var(--surface)", border:"1px solid var(--border)",
-                borderRadius:8, padding:"8px 10px", marginBottom:6,
-                fontSize:13, color:"var(--text)", lineHeight:1.6, position:"relative"
-              }}>
-                <span style={{ color:"var(--text-3)", fontSize:11, marginRight:8 }}>{n.date}</span>
-                {n.text}
-                <button className="btn-del" style={{ position:"absolute", right:5, top:6, width:18, height:18, fontSize:12 }}
-                  onClick={()=>onDelTNote(n.id)}>×</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── NoteCard ─────────────────────────────────────────────────────────────────
-function NoteCard({ note, editing, onEdit, onUpdate, onDelete }) {
-  return (
-    <div className="note-card fade-in">
-      {/* Title bar */}
-      <div style={{
-        padding:"15px 18px 12px",
-        borderBottom:"1px solid var(--border)",
-        display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10
-      }}>
-        {editing
-          ? <input className="inp" value={note.title}
-              onChange={e=>onUpdate("title",e.target.value)} autoFocus
-              style={{ fontSize:15, fontWeight:600, flex:1 }} />
-          : <h3 onClick={onEdit} style={{
-              fontSize:15, fontWeight:700, color:"var(--text)",
-              cursor:"pointer", flex:1, lineHeight:1.35
-            }}>{note.title||<span style={{color:"var(--text-4)", fontStyle:"italic"}}>Без названия</span>}</h3>
-        }
-        <div style={{ display:"flex", gap:5, flexShrink:0 }}>
-          <button className="btn btn-secondary" style={{ padding:"3px 10px", fontSize:12 }} onClick={onEdit}>
-            {editing?"Готово":"Изменить"}
-          </button>
-          <button className="btn-del" onClick={onDelete} style={{ width:26, height:26, fontSize:14 }}>×</button>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ padding:"14px 18px 18px" }}>
-        {editing
-          ? <textarea className="inp" rows={6}
-              value={note.text} onChange={e=>onUpdate("text",e.target.value)}
-              placeholder="Текст заметки…" style={{ minHeight:100 }} />
-          : <div onClick={onEdit} style={{
-              fontSize:14, color:note.text?"var(--text-2)":"var(--text-4)",
-              lineHeight:1.75, whiteSpace:"pre-wrap", wordBreak:"break-word",
-              cursor:"pointer", minHeight:50, fontStyle:note.text?"normal":"italic"
-            }}>{note.text||"Нажмите чтобы добавить текст…"}</div>
-        }
+function NoteCard({note,editing,onEdit,onUpdate,onDelete,onAddBlock,onUpdateBlock,onDeleteBlock,onUploadFile}){
+  const [addMenu,setAddMenu]=useState(false),[codeEdit,setCodeEdit]=useState(null)
+  const fileRef=useRef()
+  const handleFile=e=>{const f=e.target.files?.[0];if(f){onUploadFile(f);setAddMenu(false)};e.target.value=''}
+  return<div className="ncard fi">
+    <div style={{padding:'15px 18px 12px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+      {editing
+        ?<input className="inp" value={note.title} onChange={e=>onUpdate('title',e.target.value)} placeholder="Название заметки…" style={{fontSize:15,fontWeight:700,flex:1}} autoFocus/>
+        :<h3 onClick={onEdit} style={{fontSize:15,fontWeight:700,color:'var(--text)',cursor:'pointer',flex:1,lineHeight:1.35}}>{note.title||<span style={{color:'var(--text-4)',fontStyle:'italic',fontWeight:400}}>Без названия</span>}</h3>}
+      <div style={{display:'flex',gap:5,flexShrink:0}}>
+        <button className="btn btn-s" style={{padding:'3px 10px',fontSize:12}} onClick={onEdit}>{editing?'Готово':'Изменить'}</button>
+        <button className="bdel" onClick={onDelete} style={{width:26,height:26,fontSize:14}}>×</button>
       </div>
     </div>
-  );
+    <div style={{padding:'14px 18px 18px',display:'flex',flexDirection:'column',gap:10}}>
+      {editing
+        ?<textarea className="inp" rows={3} value={note.text} onChange={e=>onUpdate('text',e.target.value)} placeholder="Текст заметки…"/>
+        :note.text&&<div style={{fontSize:14,color:'var(--text-2)',lineHeight:1.75,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{note.text}</div>}
+      {(note.blocks||[]).map(block=><div key={block.id}>
+        {block.type==='code'&&<div className="cblock">
+          <div className="chdr">
+            <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',letterSpacing:.5}}>{(block.language||'code').toUpperCase()}</span>
+            <div style={{display:'flex',gap:8}}>
+              {editing&&<button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.4)',fontSize:12}} onClick={()=>setCodeEdit(codeEdit===block.id?null:block.id)}>✏️</button>}
+              <button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.4)',fontSize:12}} onClick={()=>navigator.clipboard?.writeText(block.content)} title="Скопировать">📋</button>
+              {editing&&<button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,100,100,0.5)',fontSize:14,fontWeight:700}} onClick={()=>onDeleteBlock(block.id)}>×</button>}
+            </div>
+          </div>
+          {codeEdit===block.id
+            ?<div style={{padding:'10px 14px'}}>
+              <select value={block.language||'javascript'} onChange={e=>onUpdateBlock(block.id,{language:e.target.value})}
+                style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',color:'var(--code-text)',borderRadius:6,padding:'3px 8px',fontSize:12,fontFamily:'inherit',marginBottom:8,width:'100%'}}>
+                {CODE_LANGS.map(l=><option key={l} value={l}>{l}</option>)}
+              </select>
+              <textarea className="cedit" value={block.content} onChange={e=>onUpdateBlock(block.id,{content:e.target.value})} rows={5}/>
+            </div>
+            :<div className="ccode">{block.content||<span style={{opacity:.3}}>{'// пусто'}</span>}</div>}
+        </div>}
+        {block.type==='file'&&<div className="fblock">
+          <div style={{width:36,height:36,borderRadius:8,background:'var(--accent-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
+            {block.mimetype?.startsWith('image/')?'🖼️':block.mimetype?.startsWith('video/')?'🎬':block.mimetype?.includes('pdf')?'📄':'📎'}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{block.filename}</div>
+            <div style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>{fmtBytes(block.filesize||0)}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <a href={api.fileUrl(block.filepath)} download={block.filename} target="_blank" rel="noreferrer"
+              style={{background:'var(--accent-bg)',color:'var(--accent-text)',borderRadius:7,padding:'5px 10px',fontSize:12,fontWeight:600,cursor:'pointer',textDecoration:'none'}}>↓</a>
+            {editing&&<button className="bdel" onClick={()=>onDeleteBlock(block.id)}>×</button>}
+          </div>
+        </div>}
+      </div>)}
+      {editing&&<div style={{position:'relative'}}>
+        <button className="btn btn-s" style={{width:'100%',padding:'7px 0',fontSize:13,gap:6}} onClick={()=>setAddMenu(v=>!v)}>
+          <span style={{fontSize:16}}>+</span> Добавить блок
+        </button>
+        {addMenu&&<div className="fi" style={{position:'absolute',bottom:'calc(100% + 6px)',left:0,right:0,background:'var(--surface)',border:'1px solid var(--border-med)',borderRadius:12,overflow:'hidden',boxShadow:'var(--shadow-lg)',zIndex:10}}>
+          <BBtn icon="💻" label="Блок кода" sub="JS, Python, SQL, Bash…" onClick={()=>{onAddBlock({type:'code',content:'',language:'javascript'});setAddMenu(false)}}/>
+          <BBtn icon="📎" label="Прикрепить файл" sub="Изображение, документ, до 50 МБ" onClick={()=>fileRef.current?.click()}/>
+          <input ref={fileRef} type="file" style={{display:'none'}} onChange={handleFile}/>
+        </div>}
+      </div>}
+    </div>
+  </div>
 }
 
-
+function BBtn({icon,label,sub,onClick}){
+  return<button onClick={onClick} style={{display:'flex',alignItems:'center',gap:12,width:'100%',background:'transparent',border:'none',cursor:'pointer',padding:'11px 16px',fontFamily:'inherit',textAlign:'left',transition:'background .12s'}}
+    onMouseOver={e=>e.currentTarget.style.background='var(--surface2)'} onMouseOut={e=>e.currentTarget.style.background='transparent'}>
+    <span style={{fontSize:20}}>{icon}</span>
+    <div>
+      <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{label}</div>
+      <div style={{fontSize:11,color:'var(--text-3)',marginTop:1}}>{sub}</div>
+    </div>
+  </button>
+}

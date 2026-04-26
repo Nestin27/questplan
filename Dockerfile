@@ -1,33 +1,38 @@
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
+# ── Stage 1: Build frontend ───────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
 WORKDIR /app
-
-# Install dependencies first (better layer caching)
 COPY package.json ./
 RUN npm install
-
-# Copy source and build
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve ────────────────────────────────────────────────────────────
-FROM nginx:alpine AS production
+# ── Stage 2: Production ───────────────────────────────────────────────────────
+FROM node:20-alpine AS production
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy our nginx config
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Only install production deps
+COPY package.json ./
+RUN npm install --omit=dev
 
-# Copy built app from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy server
+COPY server/ ./server/
 
-# Expose port
-EXPOSE 80
+# Copy built frontend
+COPY --from=builder /app/dist ./dist
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost/ || exit 1
+# Data volumes
+RUN mkdir -p /data/uploads
 
-CMD ["nginx", "-g", "daemon off;"]
+ENV NODE_ENV=production
+ENV PORT=4000
+ENV DATA_DIR=/data
+ENV UPLOADS_DIR=/data/uploads
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:4000/ || exit 1
+
+CMD ["node", "server/index.js"]
