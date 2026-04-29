@@ -5,6 +5,7 @@ import { T } from './i18n.js'
 
 const CURRENCIES = ['RUB','USD','EUR','GBP','UAH','KZT']
 const PALETTE    = ['#4F6EF7','#E05A8A','#22C55E','#F59E0B','#8B5CF6','#06B6D4','#EF4444','#F97316']
+const SYM = {RUB:'₽',USD:'$',EUR:'€',GBP:'£',UAH:'₴',KZT:'₸'}
 
 const fmtAmt = (amount, currency) => {
   if (!amount) return ''
@@ -48,11 +49,26 @@ export default function Payments({ lang = 'ru' }) {
     sync(updated)
   }
   const isPaid  = (item, m) => item.checks?.find(c=>c.year===year&&c.month===m)?.paid
-  const mTotal  = m => items.reduce((s,it) => isPaid(it,m)?s+(it.amount||0):s, 0)
-  const yrTotal = items.reduce((s,it) => {
-    const cnt = i.months.reduce((_,__,m)=>_+(isPaid(it,m)?1:0),0)
-    return s + cnt*(it.amount||0)
-  },0)
+  // per-currency totals
+  const currencyTotals = (monthIdx) => {
+    const map = {}
+    items.forEach(it => {
+      if (isPaid(it, monthIdx)) {
+        const k = it.currency || 'RUB'
+        map[k] = (map[k]||0) + (it.amount||0)
+      }
+    })
+    return map
+  }
+  const yearTotals = () => {
+    const map = {}
+    items.forEach(it => {
+      const cnt = i.months.reduce((_,__,m)=>_+(isPaid(it,m)?1:0),0)
+      const k = it.currency||'RUB'
+      map[k] = (map[k]||0) + cnt*(it.amount||0)
+    })
+    return map
+  }
 
   const curM = new Date().getMonth()
   const curY = new Date().getFullYear()
@@ -70,8 +86,7 @@ export default function Payments({ lang = 'ru' }) {
       <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24,flexWrap:'wrap'}}>
         <div>
           <h2 style={{fontSize:20,fontWeight:800,color:'var(--text)',letterSpacing:-.3}}>{i.payTitle}</h2>
-          <div style={{fontSize:13,color:'var(--text-3)',marginTop:3}}
-            dangerouslySetInnerHTML={{__html: i.paySubtitle(items.length, `<span style="color:var(--green);font-weight:700">${fmtAmt(yrTotal,'RUB')}</span>`)}}/>
+          <div style={{fontSize:13,color:'var(--text-3)',marginTop:3}}>{i.paySubtitle(items.length)}</div>
         </div>
         <div style={{flex:1}}/>
         {/* Year nav */}
@@ -197,6 +212,7 @@ export default function Payments({ lang = 'ru' }) {
                         {paidCnt>0?fmtAmt(paidSum,item.currency):'—'}
                       </div>
                       <div style={{fontSize:11,color:'var(--text-3)',marginTop:1}}>{paidCnt}{i.ofMonths}</div>
+                      {item.amount&&<div style={{fontSize:11,color:'var(--text-4)',marginTop:1}}>{fmtAmt(item.amount*(12-paidCnt),item.currency)} {i.paidTotal.replace('оплачено','осталось').replace('paid','left').replace('bezahlt','übrig').replace('已付','剩余')}</div>}
                     </td>
                     {/* Actions */}
                     <td style={{padding:'12px 8px',textAlign:'center'}}>
@@ -221,14 +237,15 @@ export default function Payments({ lang = 'ru' }) {
                   const total=mTotal(mi), isCur=mi===curM&&year===curY
                   return(
                     <td key={mi} style={{textAlign:'center',padding:'11px 4px',background:isCur?'var(--accent-bg)':'transparent'}}>
-                      {total>0
-                        ?<span style={{fontSize:11,fontWeight:700,color:'var(--green)'}}>{total.toLocaleString('ru')}</span>
-                        :<span style={{fontSize:11,color:'var(--text-4)'}}>—</span>}
+                      {(()=>{const t=currencyTotals(mi);const keys=Object.keys(t);return keys.length>0?keys.map(k=><div key={k} style={{fontSize:10,fontWeight:700,color:'var(--green)',lineHeight:1.3}}>{t[k].toLocaleString('ru')} {SYM[k]||k}</div>):<span style={{fontSize:11,color:'var(--text-4)'}}>—</span>})()}
                     </td>
                   )
                 })}
                 <td style={{padding:'11px 14px',textAlign:'right'}}>
-                  <span style={{fontSize:13,fontWeight:800,color:'var(--green)'}}>{yrTotal.toLocaleString('ru')} ₽</span>
+                  {Object.entries(yearTotals()).map(([k,v])=>(
+                    <div key={k} style={{fontSize:12,fontWeight:700,color:'var(--green)'}}>{v.toLocaleString('ru')} {SYM[k]||k}</div>
+                  ))}
+                  {Object.keys(yearTotals()).length===0&&<span style={{color:'var(--text-4)'}}>—</span>}
                 </td>
                 <td/>
               </tr>

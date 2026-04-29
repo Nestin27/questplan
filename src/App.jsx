@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { api } from './api.js'
 import Payments from './Payments.jsx'
-import { Icon } from './icons.jsx'
+import { Icon, Logo } from './icons.jsx'
 import { T, LANGS } from './i18n.js'
 
 // ─── Lang context ─────────────────────────────────────────────────────────────
@@ -157,6 +157,10 @@ textarea.inp{resize:vertical;line-height:1.65}
 .chdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.07)}
 .ccode{padding:14px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--code-text);white-space:pre-wrap;word-break:break-all;line-height:1.7;max-height:300px;overflow-y:auto}
 .cedit{width:100%;background:transparent;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--code-text);white-space:pre;resize:none;line-height:1.7;min-height:80px}
+.cblock select option{background:#1e1e2e;color:#CDD6F4}
+.cblock select{appearance:auto;-webkit-appearance:auto}
+/* Syntax color hints by keyword type */
+.ccode .kw{color:#CBA6F7}.ccode .str{color:#A6E3A1}.ccode .cmt{color:#6C7086;font-style:italic}.ccode .num{color:#FAB387}.ccode .fn{color:#89DCEB}
 .fblock{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
 @keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}.fi{animation:fi .18s ease both}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -209,7 +213,7 @@ textarea.inp{resize:vertical;line-height:1.65}
 
           {/* Logo */}
           <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-            <Icon name="logo" size={32}/>
+            <Logo size={36}/>
             <div className="logo-text" style={{fontWeight:800,fontSize:18,letterSpacing:-.5,lineHeight:1.1}}>
               <div style={{background:'linear-gradient(135deg,var(--accent),#8B6FFF)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>QuestPlan</div>
               <div className="logo-sub" style={{fontSize:10,fontWeight:500,color:'var(--text-3)',letterSpacing:.2,marginTop:1,WebkitTextFillColor:'var(--text-3)'}}>{i.slogan}</div>
@@ -410,7 +414,7 @@ function TaskPanel({i,label,tasks,isBacklog,expanded,setExpanded,weekDates,onClo
           <div style={{fontSize:12,color:'var(--text-3)',marginTop:2}}>{i.tasksCount(tasks.length,tasks.filter(t=>t.done).length)}</div>
         </div>
         <div style={{display:'flex',gap:6}}>
-          <button className="btn btn-p" style={{padding:'6px 12px',fontSize:12,gap:5}} onClick={()=>setAdding(v=>!v)}><Icon name="plus" size={13}/>{i.addTask}</button>
+          <button className="btn btn-p" style={{padding:'6px 14px',fontSize:12,gap:5}} onClick={()=>setAdding(v=>!v)}><Icon name="plus" size={13}/>{i.addTask}</button>
           <button className="btn btn-i" onClick={onClose}><Icon name="close" size={16}/></button>
         </div>
       </div>
@@ -533,8 +537,14 @@ function PanelTask({task,i,isExpanded,onExpand,onToggle,onDelete,onUnassign,isBa
 // ─── NoteCard ─────────────────────────────────────────────────────────────────
 function NoteCard({note,i,editing,onEdit,onUpdate,onDelete,onAddBlock,onUpdateBlock,onDeleteBlock,onUploadFile}){
   const [addMenu,setAddMenu]=useState(false),[codeEdit,setCodeEdit]=useState(null)
+  const [copyMsg,setCopyMsg]=useState({})
+  const [lightbox,setLightbox]=useState(null)
   const fileRef=useRef()
   const handleFile=e=>{const f=e.target.files?.[0];if(f){onUploadFile(f);setAddMenu(false)};e.target.value=''}
+  const doCopy=async(bid,text)=>{
+    try{await navigator.clipboard.writeText(text);setCopyMsg(m=>({...m,[bid]:true}));setTimeout(()=>setCopyMsg(m=>({...m,[bid]:false})),1800)}
+    catch(e){console.error('clipboard',e)}
+  }
 
   return(
     <div className="ncard fi">
@@ -566,14 +576,14 @@ function NoteCard({note,i,editing,onEdit,onUpdate,onDelete,onAddBlock,onUpdateBl
                   <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',letterSpacing:.5,fontFamily:"'JetBrains Mono',monospace"}}>{(block.language||'code').toUpperCase()}</span>
                   <div style={{display:'flex',gap:6,alignItems:'center'}}>
                     {editing&&<button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.4)',display:'flex',alignItems:'center',transition:'color .12s'}} onClick={()=>setCodeEdit(codeEdit===block.id?null:block.id)} onMouseOver={e=>e.currentTarget.style.color='rgba(255,255,255,0.8)'} onMouseOut={e=>e.currentTarget.style.color='rgba(255,255,255,0.4)'}><Icon name="edit" size={13} color="currentColor"/></button>}
-                    <button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.4)',display:'flex',alignItems:'center',transition:'color .12s'}} onClick={()=>navigator.clipboard?.writeText(block.content)} title={i.copy} onMouseOver={e=>e.currentTarget.style.color='rgba(255,255,255,0.8)'} onMouseOut={e=>e.currentTarget.style.color='rgba(255,255,255,0.4)'}><Icon name="copy" size={13} color="currentColor"/></button>
+                    <button style={{background:'transparent',border:'none',cursor:'pointer',color:copyMsg[block.id]?'#4ade80':'rgba(255,255,255,0.4)',display:'flex',alignItems:'center',gap:3,transition:'color .12s',fontSize:10,fontFamily:'inherit'}} onClick={()=>doCopy(block.id,block.content)} title={i.copy} onMouseOver={e=>e.currentTarget.style.color='rgba(255,255,255,0.8)'} onMouseOut={e=>{if(!copyMsg[block.id])e.currentTarget.style.color='rgba(255,255,255,0.4)'}}><Icon name="copy" size={13} color="currentColor"/>{copyMsg[block.id]&&<span style={{fontSize:10}}>{i.copied}</span>}</button>
                     {editing&&<button style={{background:'transparent',border:'none',cursor:'pointer',color:'rgba(255,100,100,0.5)',display:'flex',alignItems:'center'}} onClick={()=>onDeleteBlock(block.id)}><Icon name="trash" size={13} color="currentColor"/></button>}
                   </div>
                 </div>
                 {codeEdit===block.id
                   ?<div style={{padding:'10px 14px'}}>
                     <select value={block.language||'javascript'} onChange={e=>onUpdateBlock(block.id,{language:e.target.value})}
-                      style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',color:'var(--code-text)',borderRadius:6,padding:'3px 8px',fontSize:12,fontFamily:'inherit',marginBottom:8,width:'100%'}}>
+                      style={{background:'#2a2a3f',border:'1px solid rgba(255,255,255,0.18)',color:'#CDD6F4',borderRadius:6,padding:'4px 10px',fontSize:12,fontFamily:"'JetBrains Mono',monospace",marginBottom:8,width:'100%',outline:'none',cursor:'pointer'}}>
                       {CODE_LANGS.map(l=><option key={l} value={l}>{l}</option>)}
                     </select>
                     <textarea className="cedit" value={block.content} onChange={e=>onUpdateBlock(block.id,{content:e.target.value})} rows={5}/>
@@ -586,7 +596,7 @@ function NoteCard({note,i,editing,onEdit,onUpdate,onDelete,onAddBlock,onUpdateBl
                 ?<div style={{borderRadius:10,overflow:'hidden',border:'1px solid var(--border)',position:'relative'}}>
                   <img src={api.fileUrl(block.filepath)} alt={block.filename}
                     style={{width:'100%',display:'block',maxHeight:320,objectFit:'cover',cursor:'pointer'}}
-                    onClick={()=>window.open(api.fileUrl(block.filepath),'_blank')}/>
+                    onClick={()=>setLightbox(api.fileUrl(block.filepath))}/>
                   <div style={{position:'absolute',top:8,right:8,display:'flex',gap:6}}>
                     <a href={api.fileUrl(block.filepath)} download={block.filename} target="_blank" rel="noreferrer"
                       style={{background:'rgba(0,0,0,0.55)',backdropFilter:'blur(4px)',borderRadius:7,padding:'5px 9px',display:'flex',alignItems:'center',gap:5,textDecoration:'none',color:'#fff',fontSize:12,fontWeight:600}}>
@@ -644,6 +654,21 @@ function NoteCard({note,i,editing,onEdit,onUpdate,onDelete,onAddBlock,onUpdateBl
           </div>
         )}
       </div>
+      {/* Lightbox */}
+      {lightbox&&(
+        <div onClick={()=>setLightbox(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',cursor:'zoom-out',backdropFilter:'blur(6px)'}}>
+          <div onClick={e=>e.stopPropagation()} style={{position:'relative',maxWidth:'90vw',maxHeight:'90vh'}}>
+            <img src={lightbox} style={{maxWidth:'90vw',maxHeight:'85vh',objectFit:'contain',borderRadius:12,boxShadow:'0 20px 60px rgba(0,0,0,0.8)'}}/>
+            <button onClick={()=>setLightbox(null)} style={{position:'absolute',top:-14,right:-14,width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(4px)'}}>
+              <Icon name="close" size={15} color="#fff"/>
+            </button>
+            <a href={lightbox} download target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
+              style={{position:'absolute',bottom:-44,left:'50%',transform:'translateX(-50%)',background:'rgba(255,255,255,0.12)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff',borderRadius:8,padding:'6px 16px',fontSize:12,fontWeight:600,textDecoration:'none',display:'flex',alignItems:'center',gap:6,backdropFilter:'blur(4px)'}}>
+              <Icon name="download" size={13} color="#fff"/>{i.download}
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
